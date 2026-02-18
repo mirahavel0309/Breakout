@@ -2,6 +2,7 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <algorithm> // std::clamp
 
 #include "gl2d/gl2d.h"
 #include "engine/debug/openglErrorReporting.h"
@@ -13,27 +14,12 @@
 #include "imguiThemes.h"
 
 #pragma region CrowFramework_Config
-/// ============================================================================
-/// CrowFramework Configuration
-/// ----------------------------------------------------------------------------
-/// - Global engine configuration values.
-/// - Window size, title, debug flags, etc.
-/// - Safe to edit.
-/// ============================================================================
-
 static constexpr int kDefaultWidth = 640;
 static constexpr int kDefaultHeight = 480;
-static constexpr const char* kWindowTitle = "CrowFramework Sandbox";
+static constexpr const char* kWindowTitle = "Breakout";
 #pragma endregion
 
 #pragma region Platform_Callbacks
-/// ============================================================================
-/// Platform Callbacks
-/// ----------------------------------------------------------------------------
-/// - Low-level platform callbacks (GLFW).
-/// - You usually DO NOT need to modify this.
-/// ============================================================================
-
 static void error_callback(int error, const char* description)
 {
     std::cout << "GLFW Error(" << error << "): " << description << "\n";
@@ -41,13 +27,6 @@ static void error_callback(int error, const char* description)
 #pragma endregion
 
 #pragma region Game_TemporaryData
-/// ============================================================================
-/// Temporary Game Data
-/// ----------------------------------------------------------------------------
-/// - Quick test data used during prototyping.
-/// - Replace with Mesh / Resource system later.
-/// ============================================================================
-
 static float rect[] = {
     -0.5f,-0.5f,0.0f,
      0.5f,-0.5f,0.0f,
@@ -63,14 +42,6 @@ static float rect[] = {
 int main()
 {
 #pragma region Engine_Startup
-    /// ========================================================================
-    /// Engine Startup
-    /// ------------------------------------------------------------------------
-    /// - Initializes the platform layer.
-    /// - Creates the window and OpenGL context.
-    /// - Do NOT put game logic here.
-    /// ========================================================================
-    
     glfwSetErrorCallback(error_callback);
     if (!glfwInit()) return -1;
 
@@ -91,13 +62,6 @@ int main()
 #pragma endregion
 
 #pragma region Graphics_Startup
-    /// ========================================================================
-    /// Graphics Startup
-    /// ------------------------------------------------------------------------
-    /// - Loads OpenGL function pointers (GLAD).
-    /// - Sets up debug and error reporting.
-    /// ========================================================================
-    
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         glfwDestroyWindow(window);
@@ -110,13 +74,6 @@ int main()
 #pragma endregion
 
 #pragma region Resource_Loading
-    /// ========================================================================
-    /// Resource Loading
-    /// ------------------------------------------------------------------------
-    /// - Load shaders, meshes, textures, and other GPU resources here.
-    /// - This section will later be replaced by a ResourceManager.
-    /// ========================================================================
-
     GLuint vao = 0, vbo = 0;
     glGenVertexArrays(1, &vao);
     glGenBuffers(1, &vbo);
@@ -139,77 +96,93 @@ int main()
 #pragma endregion
 
 #pragma region Game_Initialization
-    /// ========================================================================
-    /// Game Initialization
-    /// ------------------------------------------------------------------------
-    /// - Initialize game state here.
-    /// - Player, enemies, levels, scores, etc.
-    /// ========================================================================
-    
+    float paddleX = 0.0f;
+    const float paddleY = -0.88f;
+    const float paddleW = 0.25f;
+    const float paddleH = 0.06f;
+
+    const float paddleSpeed = 1.6f;
+
+    double lastTime = glfwGetTime();
+
+	float ballX = 0.0f;
+    float ballY = -0.2f;
+    float ballSize = 0.04f;
+
+    float ballVX = 0.7f;
+	float ballVY = 1.0f;
 #pragma endregion
 
 #pragma region Main_Loop
-    /// ========================================================================
-    /// Main Game Loop
-    /// ------------------------------------------------------------------------
-    /// - Runs until the window is closed.
-    /// - Update ¡æ Render ¡æ Present
-    /// ========================================================================
-    
     while (!glfwWindowShouldClose(window))
     {
 #pragma region Frame_Begin
-        /// Per-frame setup (viewport, clear, timing).
         int width = 0, height = 0;
         glfwGetFramebufferSize(window, &width, &height);
         glViewport(0, 0, width, height);
         glClear(GL_COLOR_BUFFER_BIT);
+
+        // delta time
+        double now = glfwGetTime();
+        float dt = static_cast<float>(now - lastTime);
+        lastTime = now;
+
+        if (dt > 0.05f) dt = 0.05f;
 #pragma endregion
 
 #pragma region Input_Update
-        /// --------------------------------------------------------------------
-        /// Input Update
-        /// - Handle keyboard / mouse input here.
-        /// --------------------------------------------------------------------
-        
+        float dir = 0.0f;
+
+        if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        {
+            dir -= 1.0f;
+		}
+        if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS ||
+            glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        {
+            dir += 1.0f;
+        }
+        paddleX += dir * paddleSpeed * dt;
+
+        float halfPaddleW = paddleW / 2.0f;
+		paddleX = std::clamp(paddleX, -1.0f + halfPaddleW, 1.0f - halfPaddleW);
 #pragma endregion
 
 #pragma region Game_Update
-        /// --------------------------------------------------------------------
-        /// Game Update
-        /// - Update game logic.
-        /// - Movement, collision, AI, scoring, etc.
-        /// --------------------------------------------------------------------
-        
+
+        float half = ballSize * 0.5f;
+
+        // left/right
+        if (ballX < -1.0f + half) { ballX = -1.0f + half; ballVX *= -1.0f; }
+        if (ballX > 1.0f - half) { ballX = 1.0f - half; ballVX *= -1.0f; }
+
 #pragma endregion
 
 #pragma region World_Render
-        /// --------------------------------------------------------------------
-        /// World Rendering
-        /// - Draw game objects here.
-        /// - Do NOT update game logic in this section.
-        /// --------------------------------------------------------------------
-        
-        shader.Use();
-        shader.SetVec3("uColor", 0.0f, 1.0f, 0.0f);
-        shader.SetVec2("uScale", 0.5f, 0.5f);
-        shader.SetVec2("uOffset", 0.0f, 0.0f);
-
         glBindVertexArray(vao);
+
+        // Paddle
+        shader.Use();
+        shader.SetVec3("uColor", 0.20f, 0.70f, 1.00f);
+        shader.SetVec2("uScale", paddleW, paddleH);
+        shader.SetVec2("uOffset", paddleX, paddleY);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // Ball
+        shader.SetVec3("uColor", 1.0f, 1.0f, 1.0f);
+        shader.SetVec2("uScale", ballSize, ballSize);
+        shader.SetVec2("uOffset", ballX, ballY);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
         glBindVertexArray(0);
 #pragma endregion
 
+
 #pragma region UI_Render
-        /// --------------------------------------------------------------------
-        /// UI Rendering
-        /// - ImGui or HUD rendering goes here.
-        /// --------------------------------------------------------------------
-        
 #pragma endregion
 
 #pragma region Frame_End
-        /// Present the frame and poll events.
         glfwSwapBuffers(window);
         glfwPollEvents();
 #pragma endregion
@@ -217,13 +190,6 @@ int main()
 #pragma endregion
 
 #pragma region Engine_Shutdown
-    /// ========================================================================
-    /// Engine Shutdown
-    /// ------------------------------------------------------------------------
-    /// - Clean up all resources.
-    /// - Called once before application exit.
-    /// ========================================================================
-    
     glDeleteBuffers(1, &vbo);
     glDeleteVertexArrays(1, &vao);
 
