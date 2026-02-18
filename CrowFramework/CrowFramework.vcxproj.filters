@@ -57,12 +57,12 @@
     <ClCompile Include="..\dependences\stb_truetype\src\stb_truetype.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\engine\Shader.cpp">
+    <ClCompile Include="src\engine\graphics\Shader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\engine\Shader.h">
+    <ClInclude Include="include\engine\graphics\Shader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

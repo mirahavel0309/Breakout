@@ -2,7 +2,8 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
-#include <algorithm> // std::clamp
+#include <algorithm>
+#include <cmath>
 
 #include "gl2d/gl2d.h"
 #include "engine/debug/openglErrorReporting.h"
@@ -111,6 +112,13 @@ int main()
 
     float ballVX = 0.7f;
 	float ballVY = 1.0f;
+
+    // Playfield (black) - shared for update & render
+    const float playW = 1.94f;
+    const float playH = 1.98f;
+    const float playX = 0.0f;
+    const float playY = -0.01f;
+
 #pragma endregion
 
 #pragma region Main_Loop
@@ -131,6 +139,7 @@ int main()
 #pragma endregion
 
 #pragma region Input_Update
+
         float dir = 0.0f;
 
         if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS ||
@@ -153,14 +162,121 @@ int main()
 
         float half = ballSize * 0.5f;
 
-        // left/right
-        if (ballX < -1.0f + half) { ballX = -1.0f + half; ballVX *= -1.0f; }
-        if (ballX > 1.0f - half) { ballX = 1.0f - half; ballVX *= -1.0f; }
+        const float leftWall = playX - playW * 0.5f;
+        const float rightWall = playX + playW * 0.5f;
+        const float topWall = playY + playH * 0.5f;
+
+		// Ball movement
+		ballX += ballVX * dt;
+		ballY += ballVY * dt;
+
+        if (ballY + half > topWall) { ballY = topWall - half; ballVY *= -1.0f; }
+        if (ballX - half < leftWall) { ballX = leftWall + half; ballVX *= -1.0f; }
+        if (ballX + half > rightWall) { ballX = rightWall - half; ballVX *= -1.0f; }
+
+        const float halfBall = ballSize * 0.5f;
+        const float halfPW = paddleW * 0.5f;
+        const float halfPH = paddleH * 0.5f;
+
+        // AABB overlap check
+        bool overlapX = (ballX + halfBall) >= (paddleX - halfPW) &&
+            (ballX - halfBall) <= (paddleX + halfPW);
+
+        bool overlapY = (ballY - halfBall) <= (paddleY + halfPH) &&
+            (ballY + halfBall) >= (paddleY - halfPH);
+
+        if (overlapX && overlapY && ballVY < 0.0f) 
+        {
+            ballY = paddleY + halfPH + halfBall;
+
+            ballVY *= -1.0f;
+
+            float offset = (ballX - paddleX) / halfPW;   // -1 ~ 1
+            ballVX = offset * 1.2f;
+			if (std::abs(ballVX) < 0.2f) ballVX = (ballVX < 0.0f) ? -0.2f : 0.2f;
+        }
+
+        if (ballY < -1.0f - half)
+        {
+            ballX = 0.0f;
+            ballY = -0.2f;
+            ballVX = 0.7f;
+            ballVY = 1.0f;
+        }
 
 #pragma endregion
 
 #pragma region World_Render
         glBindVertexArray(vao);
+
+        // ===== Background (white) =====
+        shader.Use();
+        shader.SetVec3("uColor", 0.95f, 0.95f, 0.95f);
+        shader.SetVec2("uScale", 2.0f, 2.0f);
+        shader.SetVec2("uOffset", 0.0f, 0.0f);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        shader.SetVec3("uColor", 0.02f, 0.02f, 0.02f);
+        shader.SetVec2("uScale", playW, playH);
+        shader.SetVec2("uOffset", playX, playY);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // ===== Bricks
+        {
+            const int cols = 14;
+            const int rowsPerColor = 2;
+            const int colorBands = 4;
+            const int rows = rowsPerColor * colorBands; // 8
+
+			// bricks area
+            const float left = playX - playW * 0.5f;
+            const float right = playX + playW * 0.5f;
+            const float top = playY + playH * 0.5f;
+
+            const float scoreBandH = 0.18f;
+            const float bricksTop = top - scoreBandH;
+
+            const float marginX = 0.06f;
+            const float marginTop = 0.05f;
+            const float areaW = (right - left) - marginX * 2.0f;
+            const float areaH = 0.32f; 
+
+            const float gapX = 0.008f;
+            const float gapY = 0.012f;
+
+            const float brickW = (areaW - gapX * (cols - 1)) / cols;
+            const float brickH = (areaH - gapY * (rows - 1)) / rows;
+
+            const float startX = left + marginX + brickW * 0.5f;
+            const float startY = bricksTop - marginTop - brickH * 0.5f;
+
+            const float colors[colorBands][3] = {
+                { 0.86f, 0.10f, 0.10f }, // red
+                { 0.92f, 0.55f, 0.10f }, // orange
+                { 0.10f, 0.70f, 0.20f }, // green
+                { 0.90f, 0.85f, 0.15f }, // yellow
+            };
+
+            shader.Use();
+
+            for (int r = 0; r < rows; ++r)
+            {
+                int band = r / rowsPerColor; // 0..3
+                shader.SetVec3("uColor", colors[band][0], colors[band][1], colors[band][2]);
+
+                float y = startY - r * (brickH + gapY);
+
+                for (int c = 0; c < cols; ++c)
+                {
+                    float x = startX + c * (brickW + gapX);
+
+                    shader.SetVec2("uScale", brickW, brickH);
+                    shader.SetVec2("uOffset", x, y);
+                    glDrawArrays(GL_TRIANGLES, 0, 6);
+                }
+            }
+        }
+
 
         // Paddle
         shader.Use();
